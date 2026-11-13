@@ -1,13 +1,11 @@
 spring:
   application:
     name: chatapp_backend
-
   datasource:
     url: ${DB_URL:jdbc:postgresql://localhost:5432/chatapp}
     username: ${DB_USERNAME:gyan}
     password: ${DB_PASSWORD:gyan@password}
     driver-class-name: org.postgresql.Driver
-
   jpa:
     hibernate:
       ddl-auto: validate
@@ -18,22 +16,18 @@ spring:
         jdbc:
           time_zone: UTC
     open-in-view: false
-
   flyway:
     enabled: true
     locations: classpath:db/chat-migration
     baseline-on-migrate: true
     baseline-version: 1
-
   servlet:
     multipart:
       enabled: true
       max-file-size: ${MEDIA_MAX_FILE_SIZE:15MB}
       max-request-size: ${MEDIA_MAX_REQUEST_SIZE:16MB}
-
 server:
   port: ${SERVER_PORT:8080}
-
 app:
   jwt:
     secret-base64: ${JWT_SECRET:}
@@ -50,3 +44,13 @@ app:
       region: ${MEDIA_S3_REGION:us-east-1}
       endpoint: ${MEDIA_S3_ENDPOINT:}
       path-style-access: ${MEDIA_S3_PATH_STYLE:true}
+  notifications:
+    firebase:
+      enabled: ${FIREBASE_ENABLED:false}
+      credentials-file: ${FIREBASE_CREDENTIALS_FILE:}
+      project-id: ${FIREBASE_PROJECT_ID:}
+    token-encryption-key: ${FCM_TOKEN_ENCRYPTION_KEY:}
+    dispatch:
+      enabled: ${NOTIFICATION_DISPATCH_ENABLED:true}
+      interval-ms: ${NOTIFICATION_DISPATCH_INTERVAL_MS:5000}
+      batch-size: ${NOTIFICATION_DISPATCH_BATCH_SIZE:50}

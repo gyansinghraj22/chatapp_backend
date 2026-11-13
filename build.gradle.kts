@@ -12,12 +12,7 @@ version = "0.0.1-SNAPSHOT"
 
 description = "chatapp_backend"
 
-java {
-    toolchain {
-        languageVersion = JavaLanguageVersion.of(21)
-    }
-}
-
+java { toolchain { languageVersion = JavaLanguageVersion.of(21) } }
 repositories { mavenCentral() }
 
 dependencies {
@@ -34,6 +29,7 @@ dependencies {
     runtimeOnly("io.jsonwebtoken:jjwt-jackson:0.12.6")
     implementation("org.apache.tika:tika-core:3.0.0")
     implementation("software.amazon.awssdk:s3:2.29.26")
+    implementation("com.google.firebase:firebase-admin:9.4.3")
     implementation("org.jetbrains.kotlin:kotlin-reflect")
     implementation("com.fasterxml.jackson.module:jackson-module-kotlin")
     developmentOnly("org.springframework.boot:spring-boot-devtools")
