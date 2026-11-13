@@ -45,6 +45,9 @@ interface ChatParticipantRepository : JpaRepository<ChatParticipantEntity, UUID>
 }
 
 interface MessageRepository : JpaRepository<MessageEntity, UUID> {
+    fun findBySender_IdAndClientMessageId(senderId: UUID, clientMessageId: UUID): MessageEntity?
+    fun findByIdAndRoom_Id(id: UUID, roomId: UUID): MessageEntity?
+
     @Query("select m from MessageEntity m where m.room.id = :roomId and m.deletedAt is null order by m.createdAt desc, m.id desc")
     fun findLatest(@Param("roomId") roomId: UUID, pageable: Pageable): Slice<MessageEntity>
 
