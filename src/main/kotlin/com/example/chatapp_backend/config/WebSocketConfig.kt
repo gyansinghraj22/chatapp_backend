@@ -8,6 +8,7 @@ import org.springframework.messaging.simp.config.MessageBrokerRegistry
 import org.springframework.web.socket.config.annotation.EnableWebSocketMessageBroker
 import org.springframework.web.socket.config.annotation.StompEndpointRegistry
 import org.springframework.web.socket.config.annotation.WebSocketMessageBrokerConfigurer
+import java.time.Duration
 
 @Configuration
 @EnableWebSocketMessageBroker
@@ -17,6 +18,7 @@ class WebSocketConfig(
 ) : WebSocketMessageBrokerConfigurer {
     override fun configureMessageBroker(registry: MessageBrokerRegistry) {
         registry.enableSimpleBroker("/topic", "/queue")
+            .setHeartbeatValue(longArrayOf(Duration.ofSeconds(15).toMillis(), Duration.ofSeconds(15).toMillis()))
         registry.setApplicationDestinationPrefixes("/app")
         registry.setUserDestinationPrefix("/user")
     }
@@ -28,5 +30,11 @@ class WebSocketConfig(
 
     override fun configureClientInboundChannel(registration: ChannelRegistration) {
         registration.interceptors(jwtStompChannelInterceptor)
+    }
+
+    override fun configureWebSocketTransport(registry: org.springframework.web.socket.config.annotation.WebSocketTransportRegistration) {
+        registry.setMessageSizeLimit(64 * 1024)
+            .setSendBufferSizeLimit(512 * 1024)
+            .setSendTimeLimit(15_000)
     }
 }

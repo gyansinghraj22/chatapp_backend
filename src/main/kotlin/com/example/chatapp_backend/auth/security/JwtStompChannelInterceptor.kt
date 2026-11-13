@@ -11,7 +11,6 @@ import org.springframework.messaging.support.MessageHeaderAccessor
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken
 import org.springframework.security.core.authority.SimpleGrantedAuthority
 import org.springframework.stereotype.Component
-import java.security.Principal
 import java.util.UUID
 
 @Component
@@ -23,38 +22,56 @@ class JwtStompChannelInterceptor(
     override fun preSend(message: Message<*>, channel: MessageChannel): Message<*> {
         val accessor = MessageHeaderAccessor.getAccessor(message, StompHeaderAccessor::class.java) ?: return message
         when (accessor.command) {
-            StompCommand.CONNECT -> {
-                val bearer = accessor.getFirstNativeHeader("Authorization")
-                    ?: throw IllegalArgumentException("Missing STOMP Authorization header")
-                require(bearer.startsWith("Bearer ")) { "Authorization must use Bearer token" }
-                val subject = jwtService.parseSubject(bearer.removePrefix("Bearer ").trim())
-                val user = users.findById(subject).orElseThrow { IllegalArgumentException("Unknown user") }
-                require(user.isActive) { "Account is disabled" }
-                accessor.user = UsernamePasswordAuthenticationToken(
-                    AuthenticatedUser(user.id, user.username),
-                    null,
-                    listOf(SimpleGrantedAuthority("ROLE_USER"))
-                )
-            }
-            StompCommand.SUBSCRIBE -> {
-                val principal = accessor.user?.principal as? AuthenticatedUser
-                    ?: throw IllegalArgumentException("STOMP connection is not authenticated")
-                val destination = accessor.destination ?: throw IllegalArgumentException("STOMP destination is required")
-                if (destination == "/user/queue/messages" || destination == "/user/queue/errors") return message
-                val roomId = Regex("^/topic/rooms/([0-9a-fA-F-]{36})/messages$")
-                    .matchEntire(destination)?.groupValues?.get(1)?.let { runCatching { UUID.fromString(it) }.getOrNull() }
-                    ?: throw IllegalArgumentException("Subscription destination is not allowed")
-                if (!participants.existsByRoom_IdAndUser_IdAndLeftAtIsNull(roomId, principal.id)) {
-                    throw IllegalArgumentException("Active room membership is required to subscribe")
-                }
-            }
-            StompCommand.SEND -> {
-                requireNotNull(accessor.user) { "STOMP connection is not authenticated" }
-                val destination = accessor.destination ?: throw IllegalArgumentException("STOMP destination is required")
-                require(destination == "/app/chat.send") { "STOMP destination is not allowed" }
-            }
+            StompCommand.CONNECT -> authenticate(accessor)
+            StompCommand.SUBSCRIBE -> authorizeSubscription(accessor)
+            StompCommand.SEND -> authorizeSend(accessor)
             else -> Unit
         }
         return message
     }
+
+    private fun authenticate(accessor: StompHeaderAccessor) {
+        val authorization = accessor.getFirstNativeHeader("Authorization")
+            ?: throw StompSecurityException("Missing STOMP Authorization header")
+        if (!authorization.startsWith("Bearer ")) throw StompSecurityException("Authorization must use Bearer token")
+        val subject = runCatching { jwtService.parseSubject(authorization.removePrefix("Bearer ").trim()) }
+            .getOrElse { throw StompSecurityException("Invalid or expired access token") }
+        val user = users.findById(subject).orElseThrow { StompSecurityException("Unknown account") }
+        if (!user.isActive) throw StompSecurityException("Account is disabled")
+        accessor.user = UsernamePasswordAuthenticationToken(
+            AuthenticatedUser(user.id, user.username),
+            null,
+            listOf(SimpleGrantedAuthority("ROLE_USER"))
+        )
+    }
+
+    private fun authorizeSubscription(accessor: StompHeaderAccessor) {
+        val principal = authenticatedPrincipal(accessor)
+        val destination = accessor.destination ?: throw StompSecurityException("Subscription destination is required")
+        if (destination == "/user/queue/errors" || destination == "/user/queue/messages") return
+        val roomId = ROOM_MESSAGES_TOPIC.matchEntire(destination)?.groupValues?.get(1)?.let {
+            runCatching { UUID.fromString(it) }.getOrNull()
+        } ?: throw StompSecurityException("Subscription destination is not allowed")
+        if (!participants.existsByRoom_IdAndUser_IdAndLeftAtIsNull(roomId, principal.id)) {
+            throw StompSecurityException("Active room membership is required to subscribe")
+        }
+    }
+
+    private fun authorizeSend(accessor: StompHeaderAccessor) {
+        authenticatedPrincipal(accessor)
+        val destination = accessor.destination
+        if (destination !in ALLOWED_SEND_DESTINATIONS) throw StompSecurityException("STOMP send destination is not allowed")
+    }
+
+    private fun authenticatedPrincipal(accessor: StompHeaderAccessor): AuthenticatedUser =
+        (accessor.user as? org.springframework.security.authentication.UsernamePasswordAuthenticationToken)
+            ?.principal as? AuthenticatedUser
+            ?: throw StompSecurityException("STOMP connection is not authenticated")
+
+    companion object {
+        private val ROOM_MESSAGES_TOPIC = Regex("^/topic/rooms/([0-9a-fA-F-]{36})/messages$")
+        private val ALLOWED_SEND_DESTINATIONS = setOf("/app/chat.send")
+    }
 }
+
+class StompSecurityException(message: String) : RuntimeException(message)
