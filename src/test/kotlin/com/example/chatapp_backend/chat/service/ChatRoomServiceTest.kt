@@ -20,33 +20,30 @@ class ChatRoomServiceTest {
     private val service = ChatRoomService(rooms, participants, users)
 
     @Test
-    fun `group creation assigns owner and includes creator`() {
+    fun `group creation sets creator as owner and initial members as members`() {
         val creatorId = UUID.randomUUID()
-        val invitedId = UUID.randomUUID()
+        val inviteId = UUID.randomUUID()
         val creator = UserEntity(username = "creator", email = "creator@example.test").also { it.id = creatorId }
-        val invited = UserEntity(username = "invited", email = "invited@example.test").also { it.id = invitedId }
-        val room = ChatRoomEntity(name = "team", roomType = RoomType.GROUP, createdBy = creator)
+        val invite = UserEntity(username = "invite", email = "invite@example.test").also { it.id = inviteId }
+        val room = ChatRoomEntity(name = "group", roomType = RoomType.GROUP, createdBy = creator)
         Mockito.`when`(users.findById(creatorId)).thenReturn(Optional.of(creator))
-        Mockito.`when`(users.findAllById(Mockito.anyCollection())).thenReturn(listOf(creator, invited))
+        Mockito.`when`(users.findAllById(Mockito.anyCollection())).thenReturn(listOf(creator, invite))
         Mockito.`when`(rooms.saveAndFlush(Mockito.any(ChatRoomEntity::class.java))).thenReturn(room)
         Mockito.`when`(participants.findAllByRoom_IdAndLeftAtIsNullOrderByJoinedAtAsc(room.id)).thenReturn(
-            listOf(ChatParticipantEntity(room = room, user = creator, role = ParticipantRole.OWNER), ChatParticipantEntity(room = room, user = invited))
+            listOf(ChatParticipantEntity(room = room, user = creator, role = ParticipantRole.OWNER), ChatParticipantEntity(room = room, user = invite))
         )
-
-        val result = service.createGroup(creatorId, CreateGroupRoomRequest(" team ", participantIds = setOf(invitedId)))
-
-        assertEquals(RoomType.GROUP, result.type)
-        assertEquals(2, result.participants.size)
-        assertEquals(ParticipantRole.OWNER, result.participants.first { it.userId == creatorId }.role)
+        val response = service.createGroup(creatorId, CreateGroupRoomRequest(" group ", participantIds = setOf(inviteId)))
+        assertEquals("group", response.name)
+        assertEquals(ParticipantRole.OWNER, response.participants.first { it.userId == creatorId }.role)
+        assertEquals(ParticipantRole.MEMBER, response.participants.first { it.userId == inviteId }.role)
     }
 
     @Test
-    fun `group membership requires real users`() {
+    fun `group rejects unavailable invited users`() {
         val creatorId = UUID.randomUUID()
         val creator = UserEntity(username = "creator", email = "creator@example.test").also { it.id = creatorId }
         Mockito.`when`(users.findById(creatorId)).thenReturn(Optional.of(creator))
         Mockito.`when`(users.findAllById(Mockito.anyCollection())).thenReturn(listOf(creator))
-
         assertThrows(ResponseStatusException::class.java) {
             service.createGroup(creatorId, CreateGroupRoomRequest("team", participantIds = setOf(UUID.randomUUID())))
         }
