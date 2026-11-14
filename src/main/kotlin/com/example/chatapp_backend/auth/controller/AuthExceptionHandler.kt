@@ -1,5 +1,6 @@
-package com.example.chatapp_backend.auth.controller
+package com.example.chatapp_backend.auth/controller
 
+import com.example.chatapp_backend.auth.security.InvalidGoogleTokenException
 import com.example.chatapp_backend.auth.service.AccountAlreadyExistsException
 import org.springframework.http.HttpStatus
 import org.springframework.http.ResponseEntity
@@ -10,7 +11,7 @@ import org.springframework.web.bind.annotation.RestControllerAdvice
 
 @RestControllerAdvice
 class AuthExceptionHandler {
-    @ExceptionHandler(BadCredentialsException::class)
+    @ExceptionHandler(BadCredentialsException::class, InvalidGoogleTokenException::class)
     fun unauthorized(): ResponseEntity<Map<String, String>> =
         ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(mapOf("error" to "invalid_credentials"))
 

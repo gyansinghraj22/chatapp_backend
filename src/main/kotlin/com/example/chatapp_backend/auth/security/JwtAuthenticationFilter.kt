@@ -15,27 +15,46 @@ class JwtAuthenticationFilter(
     private val jwtService: JwtService,
     private val users: UserRepository
 ) : OncePerRequestFilter() {
-    override fun doFilterInternal(
-        request: HttpServletRequest,
-        response: HttpServletResponse,
-        filterChain: FilterChain
-    ) {
+    override fun doFilterInternal(request: HttpServletRequest, response: HttpServletResponse, filterChain: FilterChain) {
         val authorization = request.getHeader("Authorization")
-        if (authorization != null && authorization.startsWith("Bearer ") && SecurityContextHolder.getContext().authentication == null) {
-            runCatching { jwtService.parseSubject(authorization.removePrefix("Bearer ").trim()) }
-                .getOrNull()
-                ?.let(users::findById)
-                ?.filter { it.isActive }
-                ?.ifPresent { user ->
-                    val principal = AuthenticatedUser(user.id, user.username)
-                    val authentication = UsernamePasswordAuthenticationToken(
-                        principal,
-                        null,
-                        listOf(SimpleGrantedAuthority("ROLE_USER"))
-                    )
-                    SecurityContextHolder.getContext().authentication = authentication
-                }
+        if (authorization.isNullOrBlank()) {
+            filterChain.doFilter(request, response)
+            return
         }
-        filterChain.doFilter(request, response)
+        if (!authorization.startsWith("Bearer ") || authorization.removePrefix("Bearer ").isBlank()) {
+            unauthorized(response)
+            return
+        }
+        if (SecurityContextHolder.getContext().authentication != null) {
+            filterChain.doFilter(request, response)
+            return
+        }
+        val userId = try {
+            jwtService.parseSubject(authorization.removePrefix("Bearer ").trim())
+        } catch (_: Exception) {
+            unauthorized(response)
+            return
+        }
+        val user = users.findById(userId).orElse(null)
+        if (user == null || !user.isActive) {
+            unauthorized(response)
+            return
+        }
+        val auth = UsernamePasswordAuthenticationToken(
+            AuthenticatedUser(user.id, user.username), null,
+            listOf(SimpleGrantedAuthority("ROLE_USER"))
+        )
+        SecurityContextHolder.getContext().authentication = auth
+        try {
+            filterChain.doFilter(request, response)
+        } finally {
+            SecurityContextHolder.clearContext()
+        }
+    }
+
+    private fun unauthorized(response: HttpServletResponse) {
+        response.status = HttpServletResponse.SC_UNAUTHORIZED
+        response.contentType = "application/json"
+        response.writer.write("{\"error\":\"invalid_or_expired_access_token\"}")
     }
 }

@@ -1,7 +1,6 @@
 plugins {
     id("org.springframework.boot") version "3.4.2"
     id("io.spring.dependency-management") version "1.1.7"
-
     kotlin("jvm") version "1.9.25"
     kotlin("plugin.spring") version "1.9.25"
     kotlin("plugin.jpa") version "1.9.25"
@@ -9,7 +8,6 @@ plugins {
 
 group = "com.example"
 version = "0.0.1-SNAPSHOT"
-
 description = "chatapp_backend"
 
 java { toolchain { languageVersion = JavaLanguageVersion.of(21) } }
@@ -21,12 +19,15 @@ dependencies {
     implementation("org.springframework.boot:spring-boot-starter-security")
     implementation("org.springframework.boot:spring-boot-starter-validation")
     implementation("org.springframework.boot:spring-boot-starter-websocket")
+    implementation("org.springframework.boot:spring-boot-starter-mail")
     runtimeOnly("org.postgresql:postgresql")
     implementation("org.flywaydb:flyway-core")
     implementation("org.flywaydb:flyway-database-postgresql")
     implementation("io.jsonwebtoken:jjwt-api:0.12.6")
     runtimeOnly("io.jsonwebtoken:jjwt-impl:0.12.6")
     runtimeOnly("io.jsonwebtoken:jjwt-jackson:0.12.6")
+    implementation("com.google.api-client:google-api-client:2.7.2")
+    implementation("com.google.http-client:google-http-client-jackson2:1.45.0")
     implementation("org.apache.tika:tika-core:3.0.0")
     implementation("software.amazon.awssdk:s3:2.29.26")
     implementation("com.google.firebase:firebase-admin:9.4.3")
